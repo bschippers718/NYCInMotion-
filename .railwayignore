@@ -1,0 +1,14 @@
+.venv
+__pycache__
+**/__pycache__
+.DS_Store
+# raw downloads that the build scripts compile into the served files
+data/tlc
+data/bus_gtfs
+data/gtfs_subway.zip
+data/osm_rail.json
+data/311_subway.csv
+data/streets/cscl.json
+data/keys.json
+scripts
+README.md

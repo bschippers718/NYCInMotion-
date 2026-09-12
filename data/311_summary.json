@@ -1,0 +1,98 @@
+{
+  "total": 98376,
+  "with_coordinates": 98119,
+  "first_created": "2020-01-04T12:57:25.000",
+  "last_created": "2026-09-08T00:43:55.000",
+  "by_complaint_type": {
+    "Homeless Person Assistance": 51838,
+    "Encampment": 29916,
+    "Panhandling": 15667,
+    "Homeless Street Condition": 514,
+    "Urinating in Public": 243,
+    "Animal-Abuse": 194,
+    "Homeless Encampment": 4
+  },
+  "by_complaint_descriptor": [
+    {
+      "complaint_type": "Homeless Person Assistance",
+      "descriptor": "",
+      "count": 44564
+    },
+    {
+      "complaint_type": "Encampment",
+      "descriptor": "N/A",
+      "count": 29916
+    },
+    {
+      "complaint_type": "Panhandling",
+      "descriptor": "N/A",
+      "count": 15667
+    },
+    {
+      "complaint_type": "Homeless Person Assistance",
+      "descriptor": "Non-Chronic",
+      "count": 5492
+    },
+    {
+      "complaint_type": "Homeless Person Assistance",
+      "descriptor": "Chronic",
+      "count": 1782
+    },
+    {
+      "complaint_type": "Homeless Street Condition",
+      "descriptor": "N/A",
+      "count": 514
+    },
+    {
+      "complaint_type": "Urinating in Public",
+      "descriptor": "N/A",
+      "count": 243
+    },
+    {
+      "complaint_type": "Animal-Abuse",
+      "descriptor": "Other (complaint details)",
+      "count": 90
+    },
+    {
+      "complaint_type": "Animal-Abuse",
+      "descriptor": "Neglected",
+      "count": 54
+    },
+    {
+      "complaint_type": "Animal-Abuse",
+      "descriptor": "Tortured",
+      "count": 40
+    },
+    {
+      "complaint_type": "Animal-Abuse",
+      "descriptor": "Chained",
+      "count": 10
+    },
+    {
+      "complaint_type": "Homeless Encampment",
+      "descriptor": "N/A",
+      "count": 4
+    }
+  ],
+  "by_borough": {
+    "MANHATTAN": 61089,
+    "BROOKLYN": 16127,
+    "QUEENS": 14197,
+    "BRONX": 6897,
+    "STATEN ISLAND": 51,
+    "Unspecified": 15
+  },
+  "by_agency": {
+    "DHS": 54027,
+    "NYPD": 44349
+  },
+  "by_year": {
+    "2020": 497,
+    "2021": 19941,
+    "2022": 25189,
+    "2023": 18147,
+    "2024": 15196,
+    "2025": 12406,
+    "2026": 7000
+  }
+}

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NYC Subway — live trains (2D)</title>
+  <link rel="preconnect" href="https://tiles.openfreemap.org" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <div id="map"></div>
+
+  <aside id="panel">
+    <header>
+      <div class="titlebar">
+        <h1>NYC Subway</h1>
+        <span class="live"><span class="dot"></span>LIVE</span>
+        <a href="/" class="muted" style="margin-left:auto" title="the 3D city view">3D ↗</a>
+      </div>
+      <div id="headline" class="muted">connecting…</div>
+    </header>
+
+    <section id="routes-wrap">
+      <h2>Subway lines <span class="muted">click to isolate · shift-click to add</span></h2>
+      <div id="routes"></div>
+    </section>
+
+    <section class="strata">
+      <h2>Layers</h2>
+      <div class="stratum under">
+        <label class="layer"><input type="checkbox" id="toggle-stations" checked /> Stations</label>
+        <label class="layer"><input type="checkbox" id="toggle-scheduled" /> Not-yet-departed trains</label>
+      </div>
+      <div class="stratum street">
+        <label class="layer"><input type="checkbox" id="toggle-311" /> <span class="sw" style="background:#ffb347"></span> 311 subway complaints</label>
+        <div id="days-row" class="layer sub hidden">
+          last <input type="range" id="days" min="1" max="365" value="30" /> <span id="days-label">30</span> days
+          <span id="c311-count" class="muted"></span>
+        </div>
+      </div>
+    </section>
+
+    <section id="detail" class="hidden"></section>
+
+    <section id="summary311" class="hidden"></section>
+
+    <section id="feeds"></section>
+
+    <footer class="muted">
+      Positions are modelled from MTA GTFS-Realtime (the feed has no GPS): each train is placed on its track
+      and moved along it so that it reaches its next stop at the feed's ETA. 311 data: NYC Open Data, dataset erm2-nwe9.
+      Basemap: OpenFreeMap.
+    </footer>
+  </aside>
+
+  <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/deck.gl@9.4.0/dist.min.js"></script>
+  <script type="module" src="js/flat.js"></script>
+</body>
+</html>

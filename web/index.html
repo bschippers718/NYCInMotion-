@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NYC in Motion — the city in layers</title>
+  <link rel="preconnect" href="https://tiles.openfreemap.org" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <div id="map"></div>
+  <div id="vignette"></div>
+
+  <aside id="panel">
+    <header>
+      <div class="titlebar">
+        <h1>NYC in Motion</h1>
+        <span class="live"><span class="dot"></span>LIVE</span>
+        <button id="collapse" class="icon" title="hide panel">‹</button>
+      </div>
+      <div id="headline" class="muted">connecting…</div>
+    </header>
+
+    <section class="strata">
+      <h2>Layers of the city</h2>
+      <div class="stratum sky">
+        <div class="stratum-label"><span class="alt">+13 m to +10 km</span> elevated &amp; sky</div>
+        <label class="layer" data-layer="buildings"><input type="checkbox" checked /> <span class="sw" style="background:#3a4152"></span> Buildings</label>
+        <label class="layer sub" data-layer="photoreal"><input type="checkbox" /> photoreal city <span class="muted" id="photoreal-note">Google 3D Tiles · needs a key (see Keys)</span></label>
+        <label class="layer" data-layer="crossings"><input type="checkbox" /> <span class="sw" style="background:#ffb254"></span> Bridges, tunnels &amp; elevated roads</label>
+        <label class="layer" data-layer="aircraft"><input type="checkbox" checked /> <span class="sw" style="background:#bad6ff"></span> Aircraft <span class="count" id="n-aircraft"></span></label>
+      </div>
+      <div class="stratum street">
+        <div class="stratum-label"><span class="alt">0 m</span> street</div>
+        <label class="layer" data-layer="buses"><input type="checkbox" checked /> <span class="sw" style="background:#f28c28"></span> Buses <span class="count" id="n-buses"></span></label>
+        <label class="layer sub" data-layer="busRoutes"><input type="checkbox" /> bus routes</label>
+        <label class="layer" data-layer="taxi"><input type="checkbox" checked /> <span class="sw" style="background:#ff00bf"></span> Taxi &amp; ride-hail <span class="muted">replayed trips, the small dots</span> <span class="count" id="n-taxi"></span></label>
+        <div id="taxi-controls" class="sub">
+          <div class="services">
+            <label><input type="checkbox" data-service="uber" checked /> <i style="background:#ebebeb"></i>Uber</label>
+            <label><input type="checkbox" data-service="lyft" checked /> <i style="background:#ff00bf"></i>Lyft</label>
+            <label><input type="checkbox" data-service="yellow" checked /> <i style="background:#ffd400"></i>Yellow</label>
+          </div>
+          <div class="timerow">
+            <select id="dow">
+              <option value="0">Mon</option><option value="1">Tue</option><option value="2">Wed</option><option value="3">Thu</option>
+              <option value="4">Fri</option><option value="5">Sat</option><option value="6">Sun</option>
+            </select>
+            <input type="range" id="hour" min="0" max="23" value="18" />
+            <span id="hour-label">6 PM</span>
+            <label class="now" title="follow the real clock"><input type="checkbox" id="follow-now" checked /> now</label>
+          </div>
+          <div class="timerow">
+            <span class="muted">replay</span>
+            <div class="seg" id="taxi-speed">
+              <button data-speed="30">30×</button><button data-speed="60" class="on">60×</button><button data-speed="120">120×</button>
+            </div>
+            <label class="layer sub inline" data-layer="columns"><input type="checkbox" /> pickup columns</label>
+          </div>
+          <div class="timerow">
+            <span class="muted">dots</span>
+            <select id="taxi-density" title="how many real trips each dot stands for">
+              <option value="sparse">1 dot ≈ 5 trips (light)</option>
+              <option value="medium">1 dot ≈ 2 trips</option>
+              <option value="full">every trip (heavy)</option>
+            </select>
+          </div>
+          <div id="taxi-hint" class="hint hidden"></div>
+          <div class="muted" id="taxi-note"></div>
+        </div>
+        <label class="layer" data-layer="ferries"><input type="checkbox" checked /> <span class="sw" style="background:#00839c"></span> Ferries <span class="count" id="n-ferries"></span></label>
+        <label class="layer" data-layer="cameras"><input type="checkbox" checked /> <span class="sw" style="background:#ff6060"></span> Live cameras <span class="muted">ten hand-picked highway cams · click one to watch</span> <span class="count" id="n-cameras"></span></label>
+        <div id="cameras-hint" class="hint hidden"></div>
+        <label class="layer" data-layer="streets"><input type="checkbox" /> <span class="sw" style="background:#96a5c3"></span> Street grid (wireframe)</label>
+        <label class="layer" data-layer="complaints"><input type="checkbox" /> <span class="sw" style="background:#ffb347"></span> 311 subway complaints (30 days)</label>
+      </div>
+      <div class="stratum under">
+        <div class="stratum-label"><span class="alt">−16 to −41 m</span> underground</div>
+        <label class="layer" data-layer="trains"><input type="checkbox" checked /> <span class="sw" style="background:#ffd400"></span> Subway trains <span class="muted">strings of cars, white headlight</span> <span class="count" id="n-trains"></span></label>
+        <label class="layer sub" data-layer="tracks"><input type="checkbox" checked /> tunnels &amp; elevated tracks</label>
+        <label class="layer sub" data-layer="stations"><input type="checkbox" checked /> stations &amp; shafts</label>
+        <label class="layer sub" data-layer="photos"><input type="checkbox" checked /> station photos <span class="muted" id="photos-count"></span></label>
+        <label class="layer sub" data-layer="scheduled"><input type="checkbox" /> include not-yet-departed trains</label>
+        <label class="layer sub" data-layer="labels"><input type="checkbox" checked /> labels</label>
+      </div>
+    </section>
+
+    <section class="explode">
+      <h2>Pull the layers apart <span class="muted" id="explode-val">0%</span></h2>
+      <input type="range" id="explode" min="0" max="100" value="0" />
+      <div class="muted">Sinks the subway and lifts the street so you can see the city as a stack.</div>
+    </section>
+
+    <section class="camera">
+      <h2>Camera</h2>
+      <div class="views">
+        <button data-view="midtown">Midtown</button>
+        <button data-view="downtown">Downtown</button>
+        <button data-view="bridges">Bridges</button>
+        <button data-view="queens">Queens el</button>
+        <button data-view="city">Whole city</button>
+        <button data-view="airspace">Airspace</button>
+        <label class="toggle"><input type="checkbox" id="orbit" /> orbit</label>
+        <a href="/2d.html" class="muted" title="flat top-down map">2D ↗</a>
+      </div>
+      <div class="muted">Cab view: press <b>R</b> or use the “Ride the Manhattan Bridge” button at the top of the map. Click any train, bus, ferry or plane to follow it; click a red camera pin to watch live video.</div>
+    </section>
+
+    <section class="keys">
+      <h2>Keys <span class="muted">optional, stored in this browser</span></h2>
+      <label class="key"><span>Mapillary token</span><input id="key-mapillary" type="password" placeholder="MLY|…  optional: Mapillary's public demo token is used until you add yours" autocomplete="off" /></label>
+      <label class="key"><span>Google Maps key</span><input id="key-google" type="password" placeholder="AIza…  (photorealistic 3D tiles)" autocomplete="off" /></label>
+      <div class="muted" id="keys-note">Both are free tiers. Street photos work out of the box on Mapillary's public demo token (your own is more reliable); the photoreal buildings need a Google key.</div>
+    </section>
+
+    <section id="routes-wrap">
+      <h2>Subway lines <span class="muted">click to isolate · shift-click to add</span></h2>
+      <div id="routes"></div>
+    </section>
+
+    <section id="detail" class="hidden"></section>
+
+    <section id="feeds"></section>
+
+    <footer class="muted">
+      Subway: MTA GTFS-RT, positions modelled along the track from the feed's ETAs; depth from MTA station structure data
+      + OpenStreetMap tunnel/bridge tags. Buses: MTA Bus Time GPS snapped to their routes. Ferries: NYC Ferry GPS.
+      Aircraft: ADS-B via adsb.fi / adsb.lol (altitudes above 1.5 km compressed to 40%). Taxi / Uber / Lyft have no live feed — particles replay <span id="taxi-month">the latest</span> TLC month along real
+      street routes (NYC street centerlines). Cameras: ten hand-picked NYSDOT highway cameras, live video via 511NY. Buildings &amp; basemap: OpenFreeMap.
+    </footer>
+  </aside>
+  <button id="expand" class="icon hidden" title="show panel">›</button>
+
+  <button id="legend-show" class="icon hidden" title="show legend">what's moving?</button>
+  <div id="legend" aria-label="what is moving on the map">
+    <div class="legend-title">What's moving <button id="legend-close" class="icon" title="hide legend">×</button></div>
+    <div class="row">
+      <svg width="52" height="12" viewBox="0 0 52 12"><rect x="1" y="2" width="50" height="8" rx="4" fill="#0a0c12"/><rect x="3" y="4" width="9" height="4" fill="#ffe266"/><rect x="13.5" y="4" width="9" height="4" fill="#ffe266"/><rect x="24" y="4" width="9" height="4" fill="#ffe266"/><rect x="34.5" y="4" width="9" height="4" fill="#ffe266"/><circle cx="4" cy="6" r="1.6" fill="#ff4040"/><circle cx="48" cy="6" r="2.2" fill="#fff"/></svg>
+      <span><b>Subway train</b> — cars in the line's colour, white headlight, red tail. Runs along the coloured tracks at their real depth.</span>
+    </div>
+    <div class="row">
+      <svg width="52" height="12" viewBox="0 0 52 12"><rect x="18" y="4" width="16" height="4" rx="2" fill="#f28c28"/></svg>
+      <span><b>Bus</b> — orange, live GPS on its route</span>
+    </div>
+    <div class="row">
+      <svg width="52" height="12" viewBox="0 0 52 12"><rect x="12" y="3.5" width="28" height="5" rx="2.5" fill="#00b7d6"/></svg>
+      <span><b>Ferry</b> — teal, live GPS</span>
+    </div>
+    <div class="row">
+      <svg width="52" height="12" viewBox="0 0 52 12"><circle cx="16" cy="6" r="2.2" fill="#ebebeb"/><circle cx="26" cy="6" r="2.2" fill="#ff00bf"/><circle cx="36" cy="6" r="2.2" fill="#ffd400"/></svg>
+      <span><b>Uber · Lyft · yellow cab</b> — the small dots. Not live: a replay of a typical hour of TLC trips along real streets.</span>
+    </div>
+    <div class="row">
+      <svg width="52" height="12" viewBox="0 0 52 12"><line x1="26" y1="1" x2="26" y2="11" stroke="#bad6ff" stroke-width="1.6"/><line x1="20" y1="6" x2="32" y2="6" stroke="#bad6ff" stroke-width="1.6"/><line x1="26" y1="11" x2="26" y2="12" stroke="#bad6ff" stroke-width="1" opacity=".5"/></svg>
+      <span><b>Aircraft</b> — live ADS-B, with a beam down to its shadow</span>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/deck.gl@9.4.0/dist.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+  <div id="cab-launch" class="chip" aria-live="polite">
+    <span class="bullet on" id="cab-bullet">Q</span>
+    <div class="cab-text"><b>Ride the Manhattan Bridge from the front of a Q</b><span id="cab-status">looking for a train…</span></div>
+    <button id="ride-bridge" class="primary" title="Cab view: ride over the Manhattan Bridge (R)">▶ Cab view</button>
+  </div>
+  <div id="tiles-credit" class="hidden"></div>
+  <aside id="streetview" class="hidden">
+    <div class="sv-frame"><img alt="street-level photo near the followed vehicle" /></div>
+    <div class="sv-hint hidden"></div>
+    <div class="sv-bar"><span class="sv-cap">Mapillary</span><a class="sv-link" href="https://www.mapillary.com" target="_blank" rel="noopener">open ↗</a></div>
+  </aside>
+  <aside id="camview" class="hidden" aria-live="polite">
+    <div class="cv-head">
+      <span class="cv-live"><span class="dot"></span>LIVE</span>
+      <div class="cv-text"><b class="cv-name">—</b><span class="cv-sub"></span></div>
+      <button class="cv-close icon" title="close (Esc)">×</button>
+    </div>
+    <div class="cv-frame">
+      <video muted autoplay playsinline></video>
+      <div class="cv-hint hidden"></div>
+    </div>
+    <div class="cv-bar"><span class="cv-cap"></span><a class="cv-link" href="#" target="_blank" rel="noopener">511NY ↗</a></div>
+    <p class="cv-view"></p>
+    <div class="cv-others"></div>
+  </aside>
+  <div id="follow" class="hidden chip" aria-live="polite">
+    <span class="bullet on" id="follow-bullet">Q</span>
+    <div class="cab-text"><b id="follow-title">—</b><span id="follow-sub">—</span></div>
+    <span class="muted hint">drag the map or Esc to let go</span>
+    <button id="follow-cab" class="primary hidden" title="first-person view from the front of this train">▶ cab view</button>
+    <button id="follow-stop" title="Esc">let go</button>
+  </div>
+  <div id="ride" class="hidden" aria-live="polite">
+    <div id="ride-dark"></div>
+    <canvas id="ride-weather"></canvas>
+    <figure id="ride-photo" class="hidden">
+      <img id="ride-photo-img" alt="" />
+      <figcaption><b id="ride-photo-name"></b><span id="ride-photo-credit"></span></figcaption>
+    </figure>
+    <div class="cab-pillar left"></div>
+    <div class="cab-pillar right"></div>
+    <div class="cab-top"></div>
+    <div class="cab-dash">
+      <div class="cab-hud">
+        <span class="bullet on" id="ride-bullet">Q</span>
+        <div class="cab-text"><b id="ride-title">—</b><span id="ride-sub">—</span></div>
+        <button id="ride-sound" title="rail noise, wind, chimes and announcements (synthesised)">🔇 sound off</button>
+        <button id="ride-exit" title="Esc">exit cab</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

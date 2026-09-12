@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# downloaded / generated data (rebuild with the scripts in scripts/)
+data/gtfs_subway.zip
+data/311_subway.json
+data/311_subway.csv
+data/bus_gtfs/
+data/bus_trips.json
+data/osm_rail.json
+data/stations_structure.json
+data/tlc/
+data/taxi_flow.duckdb
+data/streets/cscl.json
+data/streets/paths.npy
+data/streets/paths_index.json
+
+# secrets
+data/keys.json
