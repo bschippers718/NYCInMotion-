@@ -235,13 +235,13 @@ body.riding #streetview { display: none; }
 #camview .cv-bar a:hover { color: var(--fg); }
 #camview .cv-view { margin: 0; padding: 0 10px 8px; font-size: 12px; line-height: 1.45; color: var(--fg); }
 #camview .cv-view:empty { display: none; }
-#camview .cv-others { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 0 6px 6px; border-top: 1px solid var(--border); padding-top: 6px; max-height: 26vh; overflow-y: auto; }
+#camview .cv-others { display: flex; flex-direction: column; gap: 2px; padding: 6px 6px 6px; border-top: 1px solid var(--border); max-height: 28vh; overflow-y: auto; }
 #camview .cv-others:empty { display: none; }
-.cv-other { display: grid; grid-template-columns: 14px 1fr; column-gap: 6px; align-items: center; background: #14171f; border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; cursor: pointer; color: var(--fg); text-align: left; font: inherit; min-width: 0; }
-.cv-other:hover { border-color: var(--border-strong); background: #191d27; }
-.cv-other .cv-play { grid-row: 1 / 3; font-size: 10px; color: #ff6060; }
-.cv-other .cv-other-name { font-size: 11px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cv-other .cv-other-d { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cv-other { display: grid; grid-template-columns: 12px 1fr auto; column-gap: 7px; align-items: center; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 3px 6px; cursor: pointer; color: var(--fg); text-align: left; font: inherit; min-width: 0; }
+.cv-other:hover { border-color: var(--border); background: #14171f; }
+.cv-other .cv-play { font-size: 9px; color: #ff6060; }
+.cv-other .cv-other-name { font-size: 11.5px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cv-other .cv-other-d { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* following a vehicle with a camera open: the street photo moves to the top right, under the map controls */
 body.camera-open #streetview { bottom: auto; top: 84px; right: 58px; }
 @media (max-width: 720px) { #camview { right: 8px; left: 8px; width: auto; bottom: 8px; } }

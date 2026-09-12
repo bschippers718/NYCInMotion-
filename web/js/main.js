@@ -28,7 +28,7 @@ const AIR_POLL_MS = 5000;
 
 const state = {
   layers: {
-    buildings: true, crossings: false, aircraft: true, buses: true, busRoutes: false, taxi: true, columns: false, ferries: true, streets: false,
+    buildings: true, crossings: false, aircraft: true, buses: true, busRoutes: false, taxi: false, columns: false, ferries: true, streets: false,
     complaints: false, trains: true, tracks: true, stations: true, scheduled: false, labels: true, photos: true, photoreal: false, cameras: true,
   },
   camera: null, // id of the camera open in the viewer
@@ -569,7 +569,7 @@ document.querySelectorAll(".layer input").forEach((input) => {
     if (name === "buses" && e.target.checked) pollBuses();
     if (name === "ferries" && e.target.checked) pollFerries();
     if (name === "aircraft" && e.target.checked) pollAircraft();
-    if (name === "taxi" && e.target.checked && !state.flow) loadFlow();
+    if (name === "taxi" && e.target.checked && !state.flow) { if (!taxi.zones) await taxi.loadZones(); loadFlow(); }
     if (name === "complaints" && e.target.checked) loadComplaints();
     if (name === "streets" && e.target.checked) loadStreets();
     if (name === "crossings" && e.target.checked) loadCrossings();
