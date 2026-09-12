@@ -24,7 +24,7 @@ smooth motion.
 | Taxi / Uber / Lyft | [TLC trip records](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) (monthly parquet, ~2 month lag) | No live feed exists. The latest month is compiled into an hourly zone-to-zone flow model; particles replay a typical hour. `scripts/build_taxi.py` |
 | Street grid, bridges, tunnels | [NYC Street Centerlines (CSCL, inkn-q76z)](https://data.cityofnewyork.us/d/inkn-q76z) | A directed road graph (one-way streets, level codes → z for bridges/tunnels/ramps). Taxi flows are routed zone-to-zone through it with Dijkstra so the particles drive real streets. `scripts/build_streets.py` |
 | 311 complaints on the subway | [NYC Open Data 311 (erm2-nwe9)](https://data.cityofnewyork.us/d/erm2-nwe9) | Optional overlay. `scripts/fetch_311.py` |
-| Live cameras | [NYC DOT Traffic Management Center](https://webcams.nyctmc.org/) (~970 street cameras, JPEG stills every few seconds) + [511NY](https://511ny.org/developers/help) (~310 NYSDOT expressway/parkway cameras with live HLS video), no key | Click a pin to watch. Stills are proxied and cached by the server (DOT serves US addresses only and asks for caching); video plays straight from NYSDOT's CDN. `subway/cameras.py` |
+| Live cameras | [511NY](https://511ny.org/developers/help): ten NYSDOT expressway cameras picked by hand out of ~310 for picture quality and for what is in the frame, live HLS video, no key | Click a red pin to watch. Video plays straight from NYSDOT's CDN; the server only refreshes the stream urls. `subway/cameras.py` |
 | Basemap + 3D buildings | [OpenFreeMap](https://openfreemap.org) (OpenMapTiles / OpenStreetMap) | Rendered by MapLibre; deck.gl draws everything else interleaved into the same scene. |
 
 ## Quick start
@@ -268,28 +268,31 @@ How it is built (`web/js/ride.js`, the `ride` branches in `layers.js`):
 
 ## Live cameras: click a pin, watch the street
 
-Layer *Live cameras* (on by default) puts a pin on a short pole at every public camera in the
-five boroughs — about 1,280 of them:
+Layer *Live cameras* (on by default) puts a red pin on a short pole at ten cameras — not the
+1,300 public ones in the five boroughs, but the handful with a picture worth watching.
 
-* **NYC DOT Traffic Management Center** — ~970 street-corner cameras (teal pins). Each publishes
-  a JPEG still that refreshes every 2–15 s. The index (`webcams.nyctmc.org/api/cameras`) is
-  CORS-restricted and the images are served to US addresses only, so the server fetches the
-  index (`data/cameras.json`, refreshed every 12 h) and proxies the stills at
-  `/api/cameras/<id>/image` with a 3 s cache: however many people are watching, DOT sees at most
-  one request per camera every few seconds. DOT asks developers who take the feed to sign its
-  data-sharing agreement (`webcams.nyctmc.org/subscribers`, tmcdot@dot.nyc.gov) — do that before
-  putting this in front of the public.
-* **NYSDOT via 511NY** — ~310 cameras on the expressways and parkways (BQE, LIE, Van Wyck, GCP,
-  Cross Bronx, Deegan, Harlem River Drive, West St, SIE…; red pins) with live HLS video
-  (`.m3u8`, CORS-open) that the browser plays directly — natively in Safari, with hls.js
-  (loaded on first use) elsewhere. A free 511NY developer key goes in `data/keys.json` as
-  `{"ny511": "…"}` or `NY511_KEY`; the camera list currently answers without one.
+The public feeds are NYC DOT's ~970 street-corner cameras (JPEG stills, all 352×240) and
+NYSDOT's ~310 expressway cameras via [511NY](https://511ny.org/developers/help), which stream
+live HLS video (`.m3u8`, CORS-open). Two thirds of the video streams are also 352×240 and most
+of them point at a stretch of pavement, so `subway/cameras.py` keeps a hand-picked list
+(`PICKS`) chosen by probing every stream's resolution and grabbing a frame from each of the ~80
+that were 512 px or wider: the Upper Bay from the Gowanus Expressway (1280×720), the downtown
+skyline behind the Gowanus at the canal, the Red Hook spires from the BQE at Hamilton Avenue,
+the Brooklyn Heights trench, J/M/Z trains crossing the BQE on the Williamsburg el (896×504),
+Tribeca and the Hudson Yards towers from West Street, the Harlem River from the drive at 130th
+and 164th (720×480), the Van Wyck at 1920×1080 — the sharpest stream NYSDOT has in the city —
+and the Cross Bronx at Arthur Avenue. Each pick carries a title, a line on what is in the frame,
+its position and its last known stream url, so the layer works with no network; every 12 h the
+server asks 511NY for the current urls (NYSDOT moves streams between CDN hosts) and which picks
+are online, and caches the result in `data/cameras.json`. A free 511NY developer key goes in
+`data/keys.json` as `{"ny511": "…"}` or `NY511_KEY`; the list currently answers without one.
 
-Clicking a pin opens the viewer at the bottom right: the picture (stills are preloaded and
-swapped, so they never blink; the LIVE badge greys if a still is over 20 s old), the camera's
-name, road, direction and borough, its source, and a strip of the five nearest cameras as live
-thumbnails you can click through — the map glides along. `Esc` or × closes it; `#cam=<id>` in the
-URL deep-links a camera. Pins carry names past zoom 15.8, collision-culled like the station labels.
+The browser plays the video directly — natively in Safari, with hls.js (loaded on first use)
+elsewhere. Clicking a pin opens the viewer at the bottom right: the stream with its source and
+actual resolution in the caption, the camera's road, direction and borough, what it looks at,
+and the other nine picks nearest-first to click through — the map glides along. `Esc` or ×
+closes it; `#cam=<id>` in the URL deep-links a camera. Pins carry their titles past zoom 12,
+collision-culled like the station labels.
 
 ## API
 
@@ -308,8 +311,7 @@ URL deep-links a camera. Pins carry names past zoom 15.8, collision-culled like 
 | `GET /api/weather` | Latest NWS observation for Central Park, classified for the renderer (`kind`: clear/clouds/overcast/fog/rain/snow/storm, `intensity`, `cloud`, `temp_c`, `wind_kmh`, …). |
 | `GET /api/photos` | Station id → `{thumb, original, name, article, page, artist, license}` from `data/station_photos.json`. |
 | `GET /api/streetview?lon&lat&heading[&token]` | Nearest Mapillary image (`url`, `heading`, `captured_at`, `link`, `demo` when on the public demo token) or `{available: false, reason}` if the token is rejected. |
-| `GET /api/cameras` | Every live camera: `id`, `name`, `lat`, `lon`, `area`, `kind` (`still`/`video`), `source`, `online`, and either `image` (proxied still) or `video` (HLS url); `road`/`direction` for the highway cameras. |
-| `GET /api/cameras/<id>/image` | Latest JPEG from a NYC DOT camera, proxied and cached ~3 s. |
+| `GET /api/cameras` | The ten picked cameras: `id`, `title`, `view` (what is in the frame), `road`, `direction`, `area`, `lat`, `lon`, `source`, `online`, `video` (HLS url), `link` (511NY page). |
 | `GET /api/keys` | Which optional keys are configured server-side (`mapillary` as a boolean; the Google key itself, since the browser needs it). |
 | `GET /api/layers` · `GET /api/health` | Which data files are present; per-feed fetch status. |
 
@@ -333,7 +335,7 @@ subway/poller.py             base class for the background feed pollers
 subway/buses.py              MTA Bus Time GTFS-RT + bus GTFS shape matching
 subway/ferries.py            NYC Ferry GTFS-RT
 subway/aircraft.py           ADS-B aircraft (adsb.fi / adsb.lol)
-subway/cameras.py            live camera index (NYC DOT + 511NY) and the still-image proxy
+subway/cameras.py            the ten hand-picked NYSDOT video cameras; refreshes their stream urls from 511NY
 subway/taxi.py               TLC flow model (DuckDB), trip sampling + street path bundles (mmap'd numpy)
 scripts/build_static.py      subway GTFS + station structure + OSM tags -> data/static.json
 scripts/build_bus_static.py  bus GTFS bundles -> data/bus_network.json, data/bus_trips.json
@@ -346,7 +348,7 @@ web/2d.html, web/js/flat.js      flat map of the trains
 web/js/trains.js, vehicles.js    smooth track-following motion for trains / buses / ferries
 web/js/aircraft.js               dead-reckoned aircraft with altitude compression
 web/js/ride.js                   cab view: camera rig, track/bridge/car geometry, ghost train
-web/js/cameras.js                live camera viewer: still refresh, HLS video, nearby strip
+web/js/cameras.js                live camera viewer: HLS video, the other picks as a list
 web/js/taxi.js, layers.js, camera.js, geo.js, api.js, ui.js
 ```
 

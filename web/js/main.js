@@ -68,7 +68,7 @@ const hashView = parseHash();
 const map = new maplibregl.Map({
   container: "map",
   style: "https://tiles.openfreemap.org/styles/dark",
-  ...(hashView || VIEWS.midtown),
+  ...(hashView || VIEWS.downtown),
   maxPitch: 80,
   antialias: true,
   attributionControl: { compact: true },
@@ -138,6 +138,9 @@ map.on("moveend", () => { if (!ride.active && !follow.active) writeHash(); });
 function parseHash() {
   const h = new URLSearchParams(location.hash.slice(1));
   if (!h.has("c")) return null;
+  // The hash tracks the camera as you pan, so a plain reload would otherwise reopen wherever you left off.
+  // Fresh loads and reloads always start downtown; only a link someone actually navigated to keeps its view.
+  if (performance.getEntriesByType("navigation")[0]?.type === "reload") return null;
   const [lon, lat] = h.get("c").split(",").map(Number);
   return { center: [lon, lat], zoom: +h.get("z") || 14, pitch: +h.get("p") || 60, bearing: +h.get("b") || 0 };
 }
