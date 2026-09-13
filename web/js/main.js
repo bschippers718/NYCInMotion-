@@ -156,7 +156,73 @@ function writeHash() {
   const h = new URLSearchParams({ c: `${c.lng.toFixed(5)},${c.lat.toFixed(5)}`, z: map.getZoom().toFixed(2), p: map.getPitch().toFixed(0), b: map.getBearing().toFixed(0) });
   if (state.explode) h.set("x", Math.round(state.explode * 100));
   if (state.camera) h.set("cam", state.camera);
-  history.replaceState(null, "", `#${h}`);
+  history.replaceState(null, "", `/#${h}`);
+}
+
+// ---- share links: /train/<id>, /bus/<id>, /ferry/<id>, /plane/<id> ---------------------------
+// Open one and the map follows that vehicle as soon as its feed arrives; the server put Open Graph
+// tags (and a live picture) on the page, so the link unfurls in chats. The follow chip's "share"
+// button makes them; while following, the address bar shows one too.
+const KIND_PATH = { train: "train", bus: "bus", ferry: "ferry", aircraft: "plane" };
+const PATH_KIND = { train: "train", bus: "bus", ferry: "ferry", plane: "aircraft" };
+const KIND_WORD = { train: "train", bus: "bus", ferry: "ferry", aircraft: "plane" };
+let shareWanted = (() => {
+  const m = location.pathname.match(/^\/(train|bus|ferry|plane)\/(.+)$/);
+  if (!m) return null;
+  try { return { kind: PATH_KIND[m[1]], id: decodeURIComponent(m[2]) }; } catch (_) { return null; }
+})();
+if (shareWanted) {
+  // its layer has to be on for the feed to be polled
+  const box = document.querySelector(`.layer[data-layer="${shareWanted.kind === "aircraft" ? "aircraft" : shareWanted.kind === "train" ? "trains" : shareWanted.kind === "bus" ? "buses" : "ferries"}"] input`);
+  if (box && !box.checked) { box.checked = true; state.layers[box.closest(".layer").dataset.layer] = true; }
+}
+const shareUrl = (kind, id) => `${location.origin}/${KIND_PATH[kind]}/${encodeURIComponent(id)}`;
+/** The first batch of `kind` is in: follow the vehicle the link named, or the nearest thing to it. */
+function shareArrived(kind) {
+  if (!shareWanted || shareWanted.kind !== kind) return;
+  const { id } = shareWanted;
+  shareWanted = null;
+  const has = { train: () => trains.get(id)?.shape, bus: () => buses.vehicles.get(id), ferry: () => ferries.vehicles.get(id), aircraft: () => aircraft.aircraft.get(id) }[kind]?.();
+  if (has) { startFollow(kind, id); toast(`Following ${follow.target()?.title || `this ${KIND_WORD[kind]}`} — drag the map or press Esc to let go`); return; }
+  if (kind === "train") {
+    // the trip is over: hand them another train of the same route and direction, the one furthest from its terminal
+    const m = id.match(/_([A-Z0-9]+)\.\.([NS])/);
+    const route = m?.[1], dir = m?.[2];
+    let best = null;
+    for (const r of trains.trains.values()) {
+      if (!r.shape || r.data.route !== route || (dir && r.data.direction !== dir) || r.data.scheduled) continue;
+      const left = r.shape.length - r.dist;
+      if (!best || left > best.left) best = { r, left };
+    }
+    if (best) { startFollow("train", best.r.id ?? best.r.data.id); toast(`That ${route} finished its run — here is another ${dirWordShort(dir)} ${route}`); return; }
+    toast(route ? `That ${route} finished its run and no other ${route} is out right now` : "That train has finished its run");
+    writeHash();
+    return;
+  }
+  writeHash();
+  toast({ bus: "That bus has gone off shift — click any other to follow it", ferry: "That ferry has tied up — click any other boat to follow it", aircraft: "That flight has left the city's airspace — click any plane to follow it" }[kind]);
+}
+async function shareFollowed() {
+  const t = follow.target();
+  if (!follow.active || !t) return;
+  const url = shareUrl(follow.kind, follow.id);
+  const title = `Follow this ${t.title} — NYC in Motion`;
+  const mobile = /Mobi|Android|iPhone|iPad/.test(navigator.userAgent);
+  if (mobile && navigator.share) {
+    try { await navigator.share({ title, text: `${t.title} · ${t.sub}`, url }); } catch (_) { /* cancelled */ }
+    return;
+  }
+  try { await navigator.clipboard.writeText(url); toast("Link copied — whoever opens it follows this " + KIND_WORD[follow.kind] + " live"); }
+  catch (_) { prompt("Copy this link:", url); }
+}
+let toastTimer = null;
+function toast(msg, ms = 5200) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.classList.remove("hidden");
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove("show"); setTimeout(() => el.classList.add("hidden"), 400); }, ms);
 }
 
 // ---- data loading -------------------------------------------------------------------
@@ -263,6 +329,7 @@ async function pollTrains() {
     clock.sample(data.generated_at, t0);
     state.feedInfo = data;
     trains.ingest(data.trains, data.generated_at);
+    shareArrived("train");
     renderRouteChips(state, trains.byRoute, null);
     $("n-trains").textContent = data.count;
     if (state.selected) showDetail(state.selected, data.trains.find((t) => t.id === state.selected));
@@ -280,7 +347,7 @@ async function pollBuses() {
     try {
       const data = await getJSON("/api/buses");
       state.busInfo = data;
-      if (!data.error) buses.ingest(data.buses, clock.now());
+      if (!data.error) { buses.ingest(data.buses, clock.now()); shareArrived("bus"); }
       $("n-buses").textContent = data.count || "";
       renderStatus(state, clock);
     } catch (err) { console.warn(err); }
@@ -295,7 +362,7 @@ async function pollFerries() {
     try {
       const data = await getJSON("/api/ferries");
       state.ferryInfo = data;
-      if (!data.error) ferries.ingest(data.vessels, clock.now());
+      if (!data.error) { ferries.ingest(data.vessels, clock.now()); shareArrived("ferry"); }
       $("n-ferries").textContent = data.count || "";
     } catch (err) { console.warn(err); }
   }
@@ -310,7 +377,7 @@ async function pollAircraft() {
       const data = await getJSON("/api/aircraft");
       state.airInfo = data;
       // fixes are stamped relative to the feed time, which is ~now on the server
-      if (!data.error && data.aircraft) aircraft.ingest(data.aircraft, data.header_ts || clock.now());
+      if (!data.error && data.aircraft) { aircraft.ingest(data.aircraft, data.header_ts || clock.now()); shareArrived("aircraft"); }
       $("n-aircraft").textContent = data.count || "";
     } catch (err) { console.warn(err); }
   }
@@ -445,9 +512,17 @@ function startFollow(kind, id) {
 function renderFollowHud(f) {
   const el = $("follow");
   const t = f.target();
-  if (!t) { el.classList.add("hidden"); document.body.classList.remove("following"); streetview.hide(); if (!ride.active) writeHash(); return; }
+  if (!t) {
+    el.classList.add("hidden"); document.body.classList.remove("following"); streetview.hide(); document.title = "NYC in Motion — the city in layers";
+    if (f.reason === "gone") toast(`Lost it — that ${KIND_WORD[f.lastKind] || "vehicle"} has left the feed`);
+    if (!ride.active) writeHash();
+    return;
+  }
+  f.lastKind = f.kind;
   el.classList.remove("hidden");
   document.body.classList.add("following");
+  const path = `/${KIND_PATH[f.kind]}/${encodeURIComponent(f.id)}`;
+  if (location.pathname !== path) { history.replaceState(null, "", path); document.title = `Following ${t.title} — NYC in Motion`; }
   $("follow-cab").classList.toggle("hidden", !CAB_VIEW || f.kind !== "train");
   const b = $("follow-bullet");
   b.textContent = t.bullet; b.style.background = t.color || "#888"; b.style.color = t.text || "#000";
@@ -667,6 +742,7 @@ $("orbit").addEventListener("change", (e) => orbit.set(e.target.checked));
 $("ride-bridge").addEventListener("click", () => { rideManhattanBridge(); audio.tryResume(); });
 $("ride-exit").addEventListener("click", () => ride.stop());
 $("follow-stop").addEventListener("click", () => follow.stop("released"));
+$("follow-share").addEventListener("click", shareFollowed);
 $("follow-cab").addEventListener("click", () => { if (follow.kind === "train") rideTrain(follow.id); });
 $("collapse").addEventListener("click", () => { $("panel").classList.add("collapsed"); $("expand").classList.remove("hidden"); });
 $("expand").addEventListener("click", () => { $("panel").classList.remove("collapsed"); $("expand").classList.add("hidden"); });

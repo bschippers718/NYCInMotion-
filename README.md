@@ -336,8 +336,35 @@ collision-culled like the station labels.
 | `GET /api/cameras` | The ten picked cameras: `id`, `title`, `view` (what is in the frame), `road`, `direction`, `area`, `lat`, `lon`, `source`, `online`, `video` (HLS url), `link` (511NY page). |
 | `GET /api/keys` | Which optional keys are configured server-side (`mapillary` as a boolean; the Google key itself, since the browser needs it). |
 | `GET /api/layers` · `GET /api/health` | Which data files are present; per-feed fetch status. |
+| `GET /train/<id>` `/bus/<id>` `/ferry/<id>` `/plane/<id>` | The map, following that vehicle, with Open Graph tags for the link preview. |
+| `GET /og/<train\|bus\|ferry\|plane>/<id>.png` · `GET /og/city.png` | The link-preview pictures, 1200×630, drawn from the live feeds. |
 
 JSON and JavaScript responses are gzip-compressed when the client accepts it.
+
+## Share links: every vehicle has an address
+
+Every train, bus, ferry and plane on the map has a link — `/train/<id>`, `/bus/<id>`,
+`/ferry/<id>`, `/plane/<id>` — that opens the map already following it. The **share**
+button in the follow chip copies one (on a phone it opens the share sheet), and while you
+follow anything the address bar shows its link, so copying the URL works too.
+
+Paste one into iMessage, Slack, X or anywhere that unfurls links and it comes up as a card:
+the server puts Open Graph / Twitter tags on the page whose picture is drawn on the spot
+from the live feeds (`subway/share.py`, Pillow, 1200×630): *Follow this Q train · 96 St →
+Coney Island-Stillwell Av · right now between Canal St and DeKalb Av*, the route lit up on
+a map of the city, a dot where the train is, its heading, and the weather in the footer.
+Buses and ferries zoom the map to their route; planes get a trail, and one outside the
+city is pinned to the edge of the map with its distance. The front page unfurls with the
+whole network and every live train and plane on it (`/og/city.png`).
+
+Vehicles are transient, so a link outlives the trip it names. When that happens the page
+still comes up with a card (*Follow a Q train — this one has finished its run*) and the
+map hands you another train of the same route and direction, the one with the most of its
+run left; a bus, boat or flight that has gone just gets a line at the bottom of the map.
+
+The pictures cost tens of milliseconds and are cached for 20–60 s per vehicle, so a link
+in a busy chat does not render once per crawler. The public base URL comes from
+`X-Forwarded-Proto` / `Host` (set `PUBLIC_URL` to override).
 
 ## URL state
 

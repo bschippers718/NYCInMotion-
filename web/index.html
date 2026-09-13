@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>NYC in Motion — the city in layers</title>
+  <!--og-->
   <link rel="preconnect" href="https://tiles.openfreemap.org" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
-  <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="/css/app.css" />
 </head>
 <body>
   <div id="map"></div>
@@ -162,7 +162,7 @@
 
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
   <script src="https://unpkg.com/deck.gl@9.4.0/dist.min.js"></script>
-  <script type="module" src="js/main.js"></script>
+  <script type="module" src="/js/main.js"></script>
   <div id="cab-launch" class="chip" aria-live="polite">
     <span class="bullet on" id="cab-bullet">Q</span>
     <div class="cab-text"><b>Ride the Manhattan Bridge from the front of a Q</b><span id="cab-status">looking for a train…</span></div>
@@ -193,8 +193,10 @@
     <div class="cab-text"><b id="follow-title">—</b><span id="follow-sub">—</span></div>
     <span class="muted hint">drag the map or Esc to let go</span>
     <button id="follow-cab" class="primary hidden" title="first-person view from the front of this train">▶ cab view</button>
+    <button id="follow-share" title="copy a link that opens the map following this vehicle">share</button>
     <button id="follow-stop" title="Esc">let go</button>
   </div>
+  <div id="toast" class="hidden" role="status" aria-live="polite"></div>
   <div id="ride" class="hidden" aria-live="polite">
     <div id="ride-dark"></div>
     <canvas id="ride-weather"></canvas>

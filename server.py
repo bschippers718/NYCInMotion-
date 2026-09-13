@@ -25,6 +25,11 @@ Endpoints
   /api/cameras            ten hand-picked NYSDOT live video cameras (511NY): harbour, skyline, river views
   /api/layers             which data layers are available and why not
   /api/health             feed status
+
+Share links
+  /train/<id> /bus/<id> /ferry/<id> /plane/<id>   the map, already following that vehicle; the page
+                          carries Open Graph tags so the link unfurls with a live picture of it
+  /og/<kind>/<id>.png     that picture (1200x630, drawn from the feeds);  /og/city.png  the front page's
 """
 from __future__ import annotations
 
@@ -39,7 +44,7 @@ import time
 from datetime import datetime, timedelta
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 from zoneinfo import ZoneInfo
 
 from subway.aircraft import AircraftPoller
@@ -49,6 +54,7 @@ from subway.feeds import FeedPoller
 from subway.ferries import FerryPoller
 from subway.network import StaticData
 from subway.positions import PositionEstimator
+from subway.share import KIND_PATH, PATH_KIND, ShareCards, og_tags
 from subway.taxi import TaxiFlow
 from subway.streetview import StreetView, load_keys
 from subway.weather import Weather
@@ -80,6 +86,7 @@ class App:
         self.streetview = StreetView(DATA / "keys.json")
         self.cameras = Cameras(DATA, DATA / "keys.json")
         self.taxi = TaxiFlow(DATA / "taxi_flow.duckdb", DATA / "taxi_zones.json", STREETS)
+        self.share = ShareCards(self)
         self._lock = threading.Lock()
         self._network_bytes: bytes | None = None
         self._311: list[dict] | None = None
@@ -271,8 +278,13 @@ class Handler(SimpleHTTPRequestHandler):
                 return handler(self, qs)
             if path.startswith("/api/"):
                 return self._json({"error": "not found"}, 404)
+            if path.startswith("/og/"):
+                return self.og_image(path)
+            share = self._share_path(path)
+            if path in ("", "/", "/index.html") or share:
+                return self.index_page(share)
             # static web files
-            rel = "index.html" if path in ("", "/") else path.lstrip("/")
+            rel = path.lstrip("/")
             file = (WEB / rel).resolve()
             if WEB.resolve() not in file.parents or not file.is_file():
                 return self._json({"error": "not found"}, 404)
@@ -288,6 +300,50 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json({"error": str(exc)}, 500)
             except OSError:
                 pass
+
+    # ---- share links -----------------------------------------------------------
+    @staticmethod
+    def _share_path(path: str):
+        """/train/<id> -> ("train", id); the id may hold anything but a slash."""
+        parts = path.split("/", 2)
+        if len(parts) == 3 and parts[1] in PATH_KIND and parts[2]:
+            return PATH_KIND[parts[1]], unquote(parts[2])
+        return None
+
+    def _public_base(self) -> str:
+        base = os.environ.get("PUBLIC_URL")
+        if base:
+            return base.rstrip("/")
+        proto = self.headers.get("X-Forwarded-Proto", "http").split(",")[0].strip()
+        host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or "localhost"
+        return f"{proto}://{host}"
+
+    def index_page(self, share):
+        """index.html with Open Graph tags for the front page or for one vehicle."""
+        html = (WEB / "index.html").read_text()
+        base = self._public_base()
+        if share:
+            kind, vid = share
+            d = self.app.share.describe(kind, vid)
+            url = f"{base}/{KIND_PATH[kind]}/{quote(vid, safe='')}"
+            image = f"{base}/og/{KIND_PATH[kind]}/{quote(vid, safe='')}.png"
+            tags = og_tags(d["title"], d["description"], url, image)
+        else:
+            c = self.app.share.city()
+            tags = og_tags(c["title"], c["description"], f"{base}/", f"{base}/og/city.png")
+        html = html.replace("<!--og-->", tags, 1)
+        self._send(html.encode(), "text/html; charset=utf-8", cache="no-cache")
+
+    def og_image(self, path: str):
+        if path == "/og/city.png":
+            return self._send(self.app.share.city_image(), "image/png", cache="public, max-age=60")
+        m = path[len("/og/"):]
+        if not m.endswith(".png"):
+            return self._json({"error": "not found"}, 404)
+        share = self._share_path("/" + m[: -len(".png")])
+        if not share:
+            return self._json({"error": "not found"}, 404)
+        self._send(self.app.share.image(*share), "image/png", cache="public, max-age=30")
 
     # ---- API table ------------------------------------------------------------
     def api_trains(self, qs):
