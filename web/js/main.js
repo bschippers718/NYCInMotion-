@@ -26,6 +26,10 @@ const TRAIN_POLL_MS = 5000;
 const BUS_POLL_MS = 10000;
 const FERRY_POLL_MS = 15000;
 const AIR_POLL_MS = 5000;
+// The first-person cab view (ride in the front of a train). Off: with a vector basemap and no
+// tunnel geometry it cannot look real, and most of a subway ride is in a tunnel. The code stays
+// so it can come back with photoreal tiles; the follow (chase) camera is what people get instead.
+const CAB_VIEW = false;
 
 const state = {
   layers: {
@@ -381,7 +385,7 @@ function render(nowMs) {
 }
 
 function showDetail(id, data) {
-  renderDetail(state, data, () => { state.selected = null; if (follow.kind === "train") follow.stop(); }, () => rideTrain(id));
+  renderDetail(state, data, () => { state.selected = null; if (follow.kind === "train") follow.stop(); }, CAB_VIEW ? () => rideTrain(id) : null);
 }
 function selectTrain(id) {
   state.selected = id;
@@ -444,7 +448,7 @@ function renderFollowHud(f) {
   if (!t) { el.classList.add("hidden"); document.body.classList.remove("following"); streetview.hide(); if (!ride.active) writeHash(); return; }
   el.classList.remove("hidden");
   document.body.classList.add("following");
-  $("follow-cab").classList.toggle("hidden", f.kind !== "train");
+  $("follow-cab").classList.toggle("hidden", !CAB_VIEW || f.kind !== "train");
   const b = $("follow-bullet");
   b.textContent = t.bullet; b.style.background = t.color || "#888"; b.style.color = t.text || "#000";
   $("follow-title").textContent = t.title;
@@ -453,6 +457,7 @@ function renderFollowHud(f) {
 
 // ---- cab view -------------------------------------------------------------------------
 function rideTrain(id) {
+  if (!CAB_VIEW) return;
   const rec = trains.get(id);
   if (!rec?.shape) return;
   orbit.set(false); $("orbit").checked = false;
@@ -502,8 +507,9 @@ function renderCabStatus() {
   else if (c.toBridge <= 350) el.textContent = `live: a ${dir} ${t.route} is about to enter the bridge`;
   else el.textContent = `live: next ${dir} ${t.route} reaches the bridge in ~${Math.max(1, Math.round(c.toBridge / Math.max(4, c.rec.speed || 8) / 60))} min · ghost Q until then`;
 }
-setInterval(renderCabStatus, 2000);
+if (CAB_VIEW) setInterval(renderCabStatus, 2000); else $("cab-launch").classList.add("hidden");
 function rideManhattanBridge(forceGhost = false) {
+  if (!CAB_VIEW) return;
   orbit.set(false); $("orbit").checked = false;
   follow.stop();
   const best = forceGhost ? null : bridgeCandidate();
@@ -587,7 +593,7 @@ document.querySelectorAll(".layer input").forEach((input) => {
     if (name === "cameras") { if (e.target.checked && !statics.cameras) loadCameras(); else if (!e.target.checked) camview.close(); }
     if (name === "buildings" && map.getLayer("3d-buildings")) map.setLayoutProperty("3d-buildings", "visibility", e.target.checked ? "visible" : "none");
     if (name === "photoreal") applyPhotoreal();
-    if (name === "weather") applyCitySky();
+    if (name === "weather") setWeather(e.target.checked);
   });
 });
 /** Google's photogrammetry replaces the grey extrusions; the basemap buildings hide while it is on. */
@@ -672,6 +678,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "o") { $("orbit").checked = !$("orbit").checked; orbit.set($("orbit").checked); }
   if (e.key === "Escape") { if (ride.active) ride.stop(); else if (state.camera) camview.close(); else follow.stop("released"); }
   if (e.key === "r" && !ride.active) { rideManhattanBridge(); audio.tryResume(); }
+  if (e.key === "w") setWeather(!state.layers.weather);
   if (e.key === "h") $("panel").classList.contains("collapsed") ? $("expand").click() : $("collapse").click();
   if (e.key === "x") { const v = state.explode > 0.5 ? 0 : 100; $("explode").value = v; $("explode").dispatchEvent(new Event("input")); }
 });
@@ -744,14 +751,25 @@ async function pollWeather() {
 /** Put an observation everywhere it shows: the card, the cab, and the haze over the map. */
 function applyWeather(w) {
   state.weather = w;
-  ride.weather = w;
-  windshield.set(w);
+  const on = state.layers.weather;
+  ride.weather = on ? w : null;
+  windshield.set(on ? w : null);
   const sun = sunPosition(new Date());
-  renderWeatherCard($("weather"), w, sun);
+  renderWeatherCard($("weather"), w, sun, on);
   if (ride.active) ride.refreshSky(true);
   else applyCitySky(w, sun);
   renderStatus(state, clock);
 }
+/** The one weather switch: particles, haze, lightning, the cab windshield and the card all follow it. Remembered. */
+function setWeather(on) {
+  state.layers.weather = on;
+  const box = document.querySelector('.layer[data-layer="weather"] input');
+  if (box) box.checked = on;
+  localStorage.setItem("nyc-weather", on ? "on" : "off");
+  applyWeather(state.weather);
+}
+$("weather").addEventListener("click", (e) => { if (e.target.closest("[data-wx-toggle]")) setWeather(!state.layers.weather); });
+if (localStorage.getItem("nyc-weather") === "off") setWeather(false);
 
 /** Fog, rain and snow haze the far towers; otherwise the map keeps its plain dark sky. */
 function applyCitySky(w = state.weather, sun = sunPosition(new Date())) {

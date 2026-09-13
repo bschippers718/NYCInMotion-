@@ -189,9 +189,21 @@ export function weatherIcon(w, night) {
 // points down (south) unrotated, so rotating it by the direction the wind blows *from* makes it point where the wind goes
 const ARROW = `<svg class="wx-arrow" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M8 2v12M3.5 9.5L8 14l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-/** Fill the weather card. `sun` is { elevation } for day / night. */
-export function renderWeatherCard(el, w, sun) {
+/**
+ * Fill the weather card. `sun` is { elevation } for day / night. With `on` false the card
+ * folds to one quiet line with a way to turn the weather back on; the button carries
+ * `data-wx-toggle` so the caller can wire it.
+ */
+export function renderWeatherCard(el, w, sun, on = true) {
   if (!el) return;
+  if (!on) {
+    el.classList.remove("hidden");
+    el.classList.add("off");
+    el.innerHTML = `<div class="wx-off"><span class="wx-off-label">Weather off</span><span class="wx-off-hint">no rain, haze or lightning over the city</span><button class="wx-toggle" data-wx-toggle title="w">turn on</button></div>`;
+    el.dataset.kind = "off";
+    return;
+  }
+  el.classList.remove("off");
   if (!w || w.kind === "unknown" || w.temp_c == null) { el.classList.add("hidden"); return; }
   el.classList.remove("hidden");
   const night = (sun?.elevation ?? 10) < -2;
@@ -216,7 +228,7 @@ export function renderWeatherCard(el, w, sun) {
     </div>
     <div class="wx-side">
       <div class="wx-bits">${bits.map((b) => `<span class="wx-bit">${b}</span>`).join('<span class="wx-dot">·</span>')}</div>
-      <div class="wx-src">${where}${when ? ` · ${when}` : ""} · <abbr title="National Weather Service">NWS</abbr></div>
+      <div class="wx-src">${where}${when ? ` · ${when}` : ""} · <abbr title="National Weather Service">NWS</abbr> · <button class="wx-toggle" data-wx-toggle title="turn the weather off (w)">off</button></div>
     </div>`;
   el.dataset.kind = w.kind;
 }

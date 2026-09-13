@@ -158,10 +158,14 @@ rides along behind it. The camera (`Follow` in `web/js/camera.js`) centres a lit
 of the vehicle, eases the bearing toward its heading (~1 s) and settles zoom and pitch to a
 framing per kind (closer for buses and low aircraft, wider for jets). After that, zoom and
 pitch are yours: wheel-zoom keeps following. Drag the map, press Esc, or hit "let go" in
-the chip at the top to release. Trains also open the detail panel, where "ride in the cab"
-switches to the first-person view below.
+the chip at the top to release. Trains also open the detail panel.
 
-## Cab view: ride in the front of a train
+## Cab view: ride in the front of a train (switched off)
+
+The cab view is currently off (`CAB_VIEW = false` in `web/js/main.js`): with a vector
+basemap and no tunnel geometry it cannot look real, and most of a subway ride is in a
+tunnel. Everything below still works when the flag is on and is kept for the day photoreal
+tiles make it worth it.
 
 The **▶ Cab view** button in the chip at the top of the map (or `r`, or `#ride=bridge` in
 the URL) puts you in the motorman's seat of a B/D/N/Q that is crossing, or about to cross,
@@ -213,7 +217,7 @@ How it is built (`web/js/ride.js`, the `ride` branches in `layers.js`):
   observation from Central Park (`/api/weather`, National Weather Service, no key) greys
   the sky over with the cloud cover, thickens the fog, and puts rain streaks (fanning out
   faster as the train speeds up) or snow on the windshield.
-* **Weather over the city** (`web/js/weatherfx.js`, layer *Weather*). The same observation
+* **Weather over the city** (one switch — **off** on the card, `w`, or the Layers list — turns all of it off, cab windshield included, and is remembered) (`web/js/weatherfx.js`, layer *Weather*). The same observation
   falls on the map view. Rain and snow are particles in a column of air around the view
   centre (up to ~1,900 of them, one typed array a frame, nothing simulated: each drop has a
   fixed footprint and phase and its height is a function of time), leaning with the wind —
