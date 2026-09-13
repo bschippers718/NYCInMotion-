@@ -212,8 +212,19 @@ How it is built (`web/js/ride.js`, the `ride` branches in `layers.js`):
   civil dusk, sunset, day — and light the buildings from the sun's direction. The live
   observation from Central Park (`/api/weather`, National Weather Service, no key) greys
   the sky over with the cloud cover, thickens the fog, and puts rain streaks (fanning out
-  faster as the train speeds up) or snow on the windshield. The header shows it too
-  ("78°F mostly cloudy").
+  faster as the train speeds up) or snow on the windshield.
+* **Weather over the city** (`web/js/weatherfx.js`, layer *Weather*). The same observation
+  falls on the map view. Rain and snow are particles in a column of air around the view
+  centre (up to ~1,900 of them, one typed array a frame, nothing simulated: each drop has a
+  fixed footprint and phase and its height is a function of time), leaning with the wind —
+  the NWS gives the direction the wind blows *from* — and drawn depth-tested so they fall
+  behind the towers. Rain falls faster than real rain, which at map scale would barely seem
+  to move. Fog, snow and rain set a MapLibre sky in the map's own dark palette so the far
+  towers dissolve into haze; a clear sky leaves the map as it was. A thunderstorm flashes
+  the whole city now and then (a hard stroke, a gap, a softer return stroke). The panel
+  carries a weather card: a line icon for the condition that knows day from night (sun or
+  moon), the temperature, the wind as an arrow pointing where it blows with speed and
+  compass point, humidity, visibility, and the station and time of the observation.
 * **Sound** (`web/js/sound.js`, synthesised with the Web Audio API — nothing to license).
   Brown-noise rolling that opens up with speed; a click per 39 ft rail length for each
   of the two trucks under the cab, so the clatter is a true function of speed; an

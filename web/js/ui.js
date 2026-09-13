@@ -75,13 +75,13 @@ export function renderStatus(state, clock) {
   if (state.ferryInfo && !state.ferryInfo.error && state.ferryInfo.count) parts.push(`${state.ferryInfo.count} ferries`);
   if (state.airInfo && !state.airInfo.error && state.airInfo.count) parts.push(`${state.airInfo.count} aircraft`);
   if (state.flow) parts.push(`${state.flow.trips_per_hour.toLocaleString()} cab trips/h`);
-  const w = state.weather;
-  if (w && w.kind !== "unknown" && w.temp_c != null) parts.push(`${Math.round(w.temp_c * 9 / 5 + 32)}°F ${(w.description || w.kind).toLowerCase()}`);
   $("headline").textContent = `${parts.join(" · ")} · ${new Date(clock.now() * 1000).toLocaleTimeString()}`;
   const rows = Object.entries(d.feeds).map(([k, f]) => `<span class="${f.ok ? "" : "bad"}">${k}: ${f.ok ? `${f.trips} trips, ${f.age_s}s old` : "error"}</span>`);
   if (state.busInfo) rows.push(`<span class="${state.busInfo.error ? "bad" : ""}">Bus Time: ${state.busInfo.error ? "error" : `${state.busInfo.count} buses, ${state.busInfo.age_s}s old`}</span>`);
   if (state.ferryInfo) rows.push(`<span class="${state.ferryInfo.error ? "bad" : ""}">NYC Ferry: ${state.ferryInfo.error ? "error" : `${state.ferryInfo.count} vessels, ${state.ferryInfo.age_s}s old`}</span>`);
   if (state.airInfo) rows.push(`<span class="${state.airInfo.error ? "bad" : ""}">ADS-B (${esc(state.airInfo.source || "…")}): ${state.airInfo.error ? "error" : `${state.airInfo.count} aircraft, ${state.airInfo.age_s}s old`}</span>`);
+  const w = state.weather;
+  if (w) rows.push(`<span class="${w.kind === "unknown" ? "bad" : ""}">NWS weather: ${w.kind === "unknown" ? "error" : `${esc(w.station || "")}${w.observed ? `, observed ${new Date(w.observed).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`}</span>`);
   $("feeds").innerHTML = `<h2 style="grid-column:1/-1">Live feeds</h2>` + rows.join("");
 }
 

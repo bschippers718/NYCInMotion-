@@ -10,7 +10,8 @@ import { Clock, decodeStreets, getBuffer, getJSON } from "./api.js";
 import { Follow, Orbit, VIEWS } from "./camera.js";
 import { Ride } from "./ride.js";
 import { CabAudio } from "./sound.js";
-import { Windshield } from "./sky.js";
+import { Windshield, sunPosition } from "./sky.js";
+import { Lightning, Precipitation, citySky, renderWeatherCard } from "./weatherfx.js";
 import { KEYS, StreetView } from "./streetview.js";
 import { CameraViewer } from "./cameras.js";
 import { clamp, hex2rgb } from "./geo.js";
@@ -28,7 +29,7 @@ const AIR_POLL_MS = 5000;
 
 const state = {
   layers: {
-    buildings: true, crossings: false, aircraft: true, buses: true, busRoutes: false, taxi: false, columns: false, ferries: true, streets: false,
+    buildings: true, weather: true, crossings: false, aircraft: true, buses: true, busRoutes: false, taxi: false, columns: false, ferries: true, streets: false,
     complaints: false, trains: true, tracks: true, stations: true, scheduled: false, labels: true, photos: true, photoreal: false, cameras: true,
   },
   camera: null, // id of the camera open in the viewer
@@ -82,6 +83,8 @@ const ride = new Ride(map, trains, overlay);
 const follow = new Follow(map, (f) => renderFollowHud(f));
 const audio = new CabAudio();
 const windshield = new Windshield($("ride-weather"));
+const precip = new Precipitation();
+const lightning = new Lightning($("flash"));
 const streetview = new StreetView($("streetview"));
 const camview = new CameraViewer($("camview"), {
   onOpen: (cam, { nearby } = {}) => {
@@ -92,7 +95,7 @@ const camview = new CameraViewer($("camview"), {
   },
   onClose: () => { state.camera = null; document.body.classList.remove("camera-open"); writeHash(); },
 });
-window.__nyc = { map, overlay, state, trains, buses, ferries, aircraft, taxi, statics, ride, follow, audio, windshield, streetview, camview, kick: () => { cancelAnimationFrame(rafId); render(performance.now()); } }; // for poking at from the console
+window.__nyc = { map, overlay, state, trains, buses, ferries, aircraft, taxi, statics, ride, follow, audio, windshield, streetview, camview, precip, lightning, applyWeather: (w) => applyWeather(w || state.weather), kick: () => { cancelAnimationFrame(rafId); render(performance.now()); } }; // for poking at from the console
 
 map.on("load", () => {
   state.zoom = map.getZoom();
@@ -364,7 +367,12 @@ function render(nowMs) {
     }
   }
   const mc = map.getCenter();
-  overlay.setProps({ layers: buildLayers({ state, trains, buses, ferries, aircraft, taxi, statics, now, frame, ride: ride.cursor(), view: { center: [mc.lng, mc.lat], bearing: map.getBearing(), pitch: map.getPitch() }, onSelectTrain: selectTrain, onFollow: startFollow, onCamera: openCamera }) });
+  const layers = buildLayers({ state, trains, buses, ferries, aircraft, taxi, statics, now, frame, ride: ride.cursor(), view: { center: [mc.lng, mc.lat], bearing: map.getBearing(), pitch: map.getPitch() }, onSelectTrain: selectTrain, onFollow: startFollow, onCamera: openCamera });
+  // the weather falls on the map view (in the cab it is on the windshield instead)
+  const weatherOn = state.layers.weather && !ride.active;
+  if (weatherOn && state.zoom > 12.5) layers.push(...precip.layers({ center: [mc.lng, mc.lat], zoom: state.zoom, t: nowMs / 1000, weather: state.weather }));
+  lightning.tick(dtS, weatherOn && state.weather?.kind === "storm");
+  overlay.setProps({ layers });
   // cheap perf telemetry for the status line / console (`__nyc.state.perf`)
   const dt = performance.now() - t0;
   state.perf.buildMs = state.perf.buildMs * 0.95 + dt * 0.05;
@@ -553,7 +561,7 @@ function renderRideHud(ride, trains, state) {
   // black out the windshield while we are underground (the camera can't go below the map)
   $("ride-dark").style.opacity = Math.min(1, Math.max(0, (-z - 0.5) / 4.5)).toFixed(2);
 }
-ride.onChange = (r) => { renderRideHud(r, trains, state); document.body.classList.toggle("riding", r.active); if (r.active) camview.close(); else { writeHash(); audio.quiet(); } };
+ride.onChange = (r) => { renderRideHud(r, trains, state); document.body.classList.toggle("riding", r.active); if (r.active) camview.close(); else { writeHash(); audio.quiet(); applyCitySky(); } };
 function renderSoundButton() {
   const b = $("ride-sound");
   b.textContent = audio.on ? "🔊 sound on" : audio.wanted && !audio.ctx ? "🔇 tap for sound" : "🔇 sound off";
@@ -579,6 +587,7 @@ document.querySelectorAll(".layer input").forEach((input) => {
     if (name === "cameras") { if (e.target.checked && !statics.cameras) loadCameras(); else if (!e.target.checked) camview.close(); }
     if (name === "buildings" && map.getLayer("3d-buildings")) map.setLayoutProperty("3d-buildings", "visibility", e.target.checked ? "visible" : "none");
     if (name === "photoreal") applyPhotoreal();
+    if (name === "weather") applyCitySky();
   });
 });
 /** Google's photogrammetry replaces the grey extrusions; the basemap buildings hide while it is on. */
@@ -727,14 +736,28 @@ function renderRidePhoto(c) {
 
 async function pollWeather() {
   try {
-    const w = await getJSON("/api/weather");
-    state.weather = w;
-    ride.weather = w;
-    windshield.set(w);
-    if (ride.active) ride.refreshSky(true);
-    renderStatus(state, clock);
+    applyWeather(await getJSON("/api/weather"));
   } catch (e) { console.warn("weather", e); }
   setTimeout(pollWeather, 5 * 60 * 1000);
+}
+
+/** Put an observation everywhere it shows: the card, the cab, and the haze over the map. */
+function applyWeather(w) {
+  state.weather = w;
+  ride.weather = w;
+  windshield.set(w);
+  const sun = sunPosition(new Date());
+  renderWeatherCard($("weather"), w, sun);
+  if (ride.active) ride.refreshSky(true);
+  else applyCitySky(w, sun);
+  renderStatus(state, clock);
+}
+
+/** Fog, rain and snow haze the far towers; otherwise the map keeps its plain dark sky. */
+function applyCitySky(w = state.weather, sun = sunPosition(new Date())) {
+  if (ride.active) return;
+  const spec = state.layers.weather ? citySky(w, sun) : null;
+  try { map.setSky(spec || undefined); } catch (e) { console.warn("sky", e); }
 }
 
 async function boot() {

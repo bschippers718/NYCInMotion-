@@ -11,6 +11,7 @@
 <body>
   <div id="map"></div>
   <div id="vignette"></div>
+  <div id="flash" aria-hidden="true"></div>
 
   <aside id="panel">
     <header>
@@ -20,6 +21,7 @@
         <button id="collapse" class="icon" title="hide panel">‹</button>
       </div>
       <div id="headline" class="muted">connecting…</div>
+      <div id="weather" class="weather hidden" aria-live="polite"></div>
     </header>
 
     <section class="strata">
@@ -28,6 +30,7 @@
         <div class="stratum-label"><span class="alt">+13 m to +10 km</span> elevated &amp; sky</div>
         <label class="layer" data-layer="buildings"><input type="checkbox" checked /> <span class="sw" style="background:#3a4152"></span> Buildings</label>
         <label class="layer sub" data-layer="photoreal"><input type="checkbox" /> photoreal city <span class="muted" id="photoreal-note">Google 3D Tiles · needs a key (see Keys)</span></label>
+        <label class="layer" data-layer="weather"><input type="checkbox" checked /> <span class="sw" style="background:#9fb4d8"></span> Weather <span class="muted">live: rain, snow, fog and lightning over the city</span></label>
         <label class="layer" data-layer="crossings"><input type="checkbox" /> <span class="sw" style="background:#ffb254"></span> Bridges, tunnels &amp; elevated roads</label>
         <label class="layer" data-layer="aircraft"><input type="checkbox" checked /> <span class="sw" style="background:#bad6ff"></span> Aircraft <span class="count" id="n-aircraft"></span></label>
       </div>
