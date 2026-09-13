@@ -88,6 +88,11 @@ def nice_name(s: str | None) -> str:
     return " ".join(out)
 
 
+def article(word: str) -> str:
+    """'a Q', 'an N', 'an 8', 'an F': the article that sounds right before a route letter or number."""
+    return "an" if word[:1].upper() in set("AEFHILMNORSX8") else "a"
+
+
 def compass(deg: float | None) -> str:
     if deg is None:
         return ""
@@ -195,7 +200,7 @@ class ShareCards:
         d["bullet"] = rid
         d["route_runs"] = self.routes.get(route, []) or self.routes.get(rid, [])
         if t is None:
-            d["title"] = f"Follow a {rid} train"
+            d["title"] = f"Follow {article(rid)} {rid} train"
             d["lines"] = ["This one has finished its run.", f"The link picks up another {rid} on the line, live."]
             d["description"] = f"That {rid} has reached the end of its run - open the map and it hands you another {rid}, moving live through New York."
             return
@@ -221,7 +226,7 @@ class ShareCards:
             now += f" · {t['next_stop_name']} in {max(1, round(eta / 60))} min"
         d["title"] = f"Follow this {rid} train"
         d["lines"] = [f"{origin} → {dest}" if origin and dest else "", f"Right now {now}"]
-        d["description"] = (f"A {rid} train from {origin} to {dest}, " if origin and dest else f"A {rid} train, ") + f"{now}. Open the link and the 3D map rides along behind it, live."
+        d["description"] = (f"{article(rid).capitalize()} {rid} train from {origin} to {dest}, " if origin and dest else f"{article(rid).capitalize()} {rid} train, ") + f"{now}. Open the link and the 3D map rides along behind it, live."
 
     def _describe_bus(self, vid, d):
         snap = self.app.buses.snapshot()
