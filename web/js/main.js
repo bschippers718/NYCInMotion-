@@ -364,7 +364,7 @@ function render(nowMs) {
     }
   }
   const mc = map.getCenter();
-  overlay.setProps({ layers: buildLayers({ state, trains, buses, ferries, aircraft, taxi, statics, now, frame, ride: ride.cursor(), view: { center: [mc.lng, mc.lat], bearing: map.getBearing() }, onSelectTrain: selectTrain, onFollow: startFollow, onCamera: openCamera }) });
+  overlay.setProps({ layers: buildLayers({ state, trains, buses, ferries, aircraft, taxi, statics, now, frame, ride: ride.cursor(), view: { center: [mc.lng, mc.lat], bearing: map.getBearing(), pitch: map.getPitch() }, onSelectTrain: selectTrain, onFollow: startFollow, onCamera: openCamera }) });
   // cheap perf telemetry for the status line / console (`__nyc.state.perf`)
   const dt = performance.now() - t0;
   state.perf.buildMs = state.perf.buildMs * 0.95 + dt * 0.05;

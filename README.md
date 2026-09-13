@@ -243,9 +243,16 @@ How it is built (`web/js/ride.js`, the `ride` branches in `layers.js`):
 ## Photographs, street level and photoreal buildings
 
 * **Station photo postcards** (layer *station photos*). On the 3D map, zoomed in past
-  15.2, the nearest 12 stations with a photo carry it as a postcard standing 30 m over
+  15.2, up to 12 stations with a photo carry it as a postcard standing 30 m over
   the station shaft, always facing the camera (a deck.gl `BitmapLayer` with four 3D
-  corners, sized on screen rather than in metres); hovering shows the credit.
+  corners, sized on screen rather than in metres); hovering shows the credit. A station
+  complex (Times Sq, Union Sq, 14 St–6 Av…) is several stop ids that usually share one
+  Wikipedia article, so it gets one card: the picture most of its stops carry, over the stop
+  nearest the complex's centre (pictures are matched by file name, whatever thumbnail size
+  or tracking suffix the URL has, and a picture shared by neighbouring stops outside any
+  complex is likewise drawn once). Cards are then placed nearest-first with a screen-space
+  overlap test (a card width across, a card height up, foreshortened by the pitch), so two
+  never sit on top of each other.
 * **Street level beside a followed bus** (`web/js/streetview.js`, `/api/streetview`). While
   following a bus, ferry or above-ground train, a picture-in-picture pane shows the
   nearest Mapillary street photo to the vehicle's live position, preferring images shot

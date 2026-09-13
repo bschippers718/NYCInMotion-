@@ -132,6 +132,54 @@ function nearby(data, eye, radiusM, pos) {
   return out;
 }
 
+/**
+ * Which stops get to show a station photo. A station complex (Times Sq, Union Sq, 14 St-6 Av ...)
+ * is several stop ids, and its stops usually share one Wikipedia article and so one picture - but
+ * not always (Times Sq's stops carry the Times Sq entrance, Port Authority's its own). Either way
+ * the rider thinks of it as one station, so it gets one card: the picture most of its stops carry,
+ * over the stop nearest the complex's centre, so it is drawn once and stays put as the view moves.
+ * Stops outside any complex that still share a picture are merged the same way.
+ * Returns { photos, show: Set<stop id> }; `photos` is kept to notice a reload.
+ */
+function photoOwners(stations, photos) {
+  const key = (p) => (p.file || p.original || p.thumb).split("?")[0].split("/").pop(); // same file, whatever the thumb size
+  const byComplex = new Map(); // complex id (or the stop id itself) -> stops with a photo
+  for (const d of stations) {
+    const p = photos[d.id];
+    if (!p?.thumb) continue;
+    const k = d.complex ?? d.id;
+    if (!byComplex.has(k)) byComplex.set(k, []);
+    byComplex.get(k).push(d);
+  }
+  const nearestCentre = (stops) => {
+    const cx = stops.reduce((s, d) => s + d.lon, 0) / stops.length, cy = stops.reduce((s, d) => s + d.lat, 0) / stops.length;
+    let best = stops[0], bestD = Infinity;
+    for (const d of stops) {
+      const dd = Math.hypot((d.lon - cx) * M_PER_DEG_LON, (d.lat - cy) * M_PER_DEG_LAT);
+      if (dd < bestD || (dd === bestD && d.id < best.id)) { best = d; bestD = dd; }
+    }
+    return best;
+  };
+  // one card per complex: the picture carried by most of its stops, placed at the complex's centre
+  const byPicture = new Map(); // picture file -> representative stops (one per complex)
+  for (const stops of byComplex.values()) {
+    const votes = new Map();
+    for (const d of stops) { const k = key(photos[d.id]); votes.set(k, (votes.get(k) || 0) + 1); }
+    const pick = [...votes.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0][0];
+    const carriers = stops.filter((d) => key(photos[d.id]) === pick);
+    const rep = { ...nearestCentre(stops), photoStop: nearestCentre(carriers).id }; // stand at the complex centre, wear the chosen picture
+    if (!byPicture.has(pick)) byPicture.set(pick, []);
+    byPicture.get(pick).push(rep);
+  }
+  // the same picture can still be shared by neighbouring complexes (or loose stops): draw it once
+  const show = new Map(); // stop id that stands for the card -> stop id whose photo it shows
+  for (const reps of byPicture.values()) {
+    const rep = nearestCentre(reps);
+    show.set(rep.id, rep.photoStop);
+  }
+  return { photos, show };
+}
+
 export function buildLayers(ctx) {
   const { state, trains, buses, ferries, aircraft, taxi, statics, now, frame, ride } = ctx;
   const L = [];
@@ -385,15 +433,21 @@ export function buildLayers(ctx) {
     }
     // real photographs of the stations, standing over their shafts like postcards, facing the camera
     if (state.layers.photos && state.photos && !ride && zoom >= 15.2 && ctx.view) {
-      const { center, bearing } = ctx.view;
+      const { center, bearing, pitch = 60 } = ctx.view;
+      // A station complex (Times Sq, Fulton St, 14 St-6 Av ...) is several stop ids sharing one
+      // Wikipedia article, so several stops carry the same picture: show it once, over the stop
+      // nearest the complex's centre, so the card does not hop between stops as the view moves.
+      if (state.photoOwners?.photos !== state.photos) state.photoOwners = photoOwners(statics.stations, state.photos);
+      const show = state.photoOwners.show;
       const radius = 1400 * Math.pow(2, 15.5 - zoom); // tighter as you zoom in
       const cands = [];
       for (const d of statics.stations) {
-        const p = state.photos[d.id];
+        const photoStop = show.get(d.id);
+        const p = photoStop && state.photos[photoStop];
         if (!p || !p.thumb) continue;
         const dx = (d.lon - center[0]) * M_PER_DEG_LON, dy = (d.lat - center[1]) * M_PER_DEG_LAT;
         const dist = Math.hypot(dx, dy);
-        if (dist < radius) cands.push({ d, p, dist });
+        if (dist < radius) cands.push({ d, p, dist, dx, dy });
       }
       cands.sort((a, b) => a.dist - b.dist);
       const th = (bearing * Math.PI) / 180;
@@ -401,8 +455,23 @@ export function buildLayers(ctx) {
       // sized on screen (~150 px wide) rather than in metres: these are postcards over the city, not signs
       const mpp = (156543.03 * Math.cos((center[1] * Math.PI) / 180)) / Math.pow(2, zoom);
       const W = Math.min(150, Math.max(40, 120 * mpp)), H = W * 2 / 3, LIFT = 30;
+      // Cards face the camera, so two of them collide when they are closer than a card width
+      // along "screen right" and, along "screen up" (ground distance foreshortened by the pitch),
+      // closer than the card's own height on screen. Nearest to the centre wins.
+      const ph = (pitch * Math.PI) / 180;
+      const upThresh = (H * Math.sin(ph) + 0.2 * W) / Math.max(Math.cos(ph), 0.25);
+      const placed = [];
+      const shown = [];
+      for (const c of cands) {
+        const r = c.dx * Math.cos(th) - c.dy * Math.sin(th); // metres along screen right
+        const u = c.dx * Math.sin(th) + c.dy * Math.cos(th); // metres along screen up (away from the camera)
+        if (placed.some((q) => Math.abs(q.r - r) < W * 1.05 && Math.abs(q.u - u) < upThresh)) continue;
+        placed.push({ r, u });
+        shown.push(c);
+        if (shown.length >= 12) break;
+      }
       const posts = [];
-      for (const { d, p } of cands.slice(0, 12)) {
+      for (const { d, p } of shown) {
         const z0 = Math.max(0, d.z) + LIFT + subDz * (d.z < 0 ? 0 : 1);
         const bl = [d.lon - rx * W / 2, d.lat - ry * W / 2, z0];
         const br = [d.lon + rx * W / 2, d.lat + ry * W / 2, z0];
